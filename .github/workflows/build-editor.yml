@@ -64,22 +64,42 @@ jobs:
             Where-Object { $_.Name.EndsWith(" [Modded].iso") } |
             Select-Object -First 1
 
-          $partSize = 1900MB
-          $buffer = New-Object byte[] (10MB)
+          if (-not $iso) {
+            Write-Error "Modded ISO not found"
+            exit 1
+          }
+
+          [int64]$partSize = 1900MB
+          [int32]$bufferSize = 10MB
+          $buffer = New-Object byte[] $bufferSize
 
           $input = [System.IO.File]::OpenRead($iso.FullName)
           $part = 1
 
           try {
             while ($input.Position -lt $input.Length) {
-              $partName = Join-Path $PWD.Path ("Crash-Twinsanity-Modded.part{0:D2}" -f $part)
+
+              $partName = Join-Path $PWD.Path (
+                "Crash-Twinsanity-Modded.part{0:D2}" -f $part
+              )
+
               $output = [System.IO.File]::Create($partName)
 
               try {
-                $remaining = [Math]::Min($partSize, $input.Length - $input.Position)
+                [int64]$remaining = $input.Length - $input.Position
+
+                if ($remaining -gt $partSize) {
+                  $remaining = $partSize
+                }
 
                 while ($remaining -gt 0) {
-                  $toRead = [Math]::Min($buffer.Length, $remaining)
+
+                  [int32]$toRead = $buffer.Length
+
+                  if ([int64]$toRead -gt $remaining) {
+                    $toRead = [int32]$remaining
+                  }
+
                   $read = $input.Read($buffer, 0, $toRead)
 
                   if ($read -le 0) {
@@ -87,20 +107,30 @@ jobs:
                   }
 
                   $output.Write($buffer, 0, $read)
-                  $remaining -= $read
+
+                  [int64]$remaining = $remaining - $read
                 }
               }
               finally {
                 $output.Close()
               }
 
-              Write-Host "Created $partName"
+              Write-Host "Created: $partName"
               $part++
+
             }
           }
           finally {
             $input.Close()
           }
+
+      - name: Verify split files
+        shell: powershell
+        run: |
+          Get-ChildItem -File "Crash-Twinsanity-Modded.part*" |
+            ForEach-Object {
+              Write-Host "$($_.Name) - $([math]::Round($_.Length / 1GB, 2)) GB"
+            }
 
       - name: Create GitHub Release
         shell: powershell
