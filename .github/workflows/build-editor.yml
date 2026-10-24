@@ -27,16 +27,49 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
 
-      - name: Show repository
+      - name: Download ISO from iCloud
         shell: powershell
         run: |
-          Write-Host "Repository:"
-          Get-ChildItem
+          $icloudId = "09djTEFLDsIwA5QpcMTPjvcDw"
 
-          Write-Host ""
-          Write-Host "Tools:"
-          Get-ChildItem .\tools -Recurse -Depth 2
+          $body = @{
+            shortGUIDs = @(
+              @{
+                value = $icloudId
+              }
+            )
+          } | ConvertTo-Json -Compress
 
+          Write-Host "Resolving iCloud share link..."
+
+          $response = Invoke-RestMethod `
+            -Uri "https://ckdatabasews.icloud.com/database/1/com.apple.cloudkit/production/public/records/resolve" `
+            -Method Post `
+            -ContentType "application/json" `
+            -Body $body
+
+          $downloadUrl = $response.results[0].rootRecord.fields.fileContent.value.downloadURL
+          $filename = $response.results[0].rootRecord.fields.filename.value.stringValue
+
+          Write-Host "Filename: $filename"
+          Write-Host "Downloading ISO..."
+
+          Invoke-WebRequest `
+            -Uri $downloadUrl `
+            -OutFile $filename
+
+          Write-Host "Downloaded:"
+          Get-Item $filename | Select-Object Name, Length
+
+      - name: Build mod
+        shell: powershell
+        run: |
+          python tools/build_mod.py
+
+      - name: List output
+        shell: powershell
+        run: |
+          Get-ChildItem -Filter "*[Modded].iso"
       - name: Build Twinsanity Editor
         shell: powershell
         run: |
