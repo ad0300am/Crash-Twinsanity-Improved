@@ -27,87 +27,26 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
 
-            - name: Download ISO from iCloud
+      - name: Download ISO from iCloud
         shell: powershell
         run: |
-          $icloudId = "09djTEFLDsIwA5QpcMTPjvcDw"
+          python -m pip install icloud-resolver
 
-          $body = @{
-            shortGUIDs = @(
-              @{
-                value = $icloudId
-              }
-            )
-          } | ConvertTo-Json -Compress
+          Write-Host "Downloading Crash Twinsanity ISO from iCloud..."
 
-          Write-Host "Resolving iCloud share link..."
+          icloud-resolver "https://www.icloud.com/iclouddrive/09djTEFLDsIwA5QpcMTPjvcDw"
 
-          $response = Invoke-RestMethod `
-            -Uri "https://ckdatabasews.icloud.com/database/1/com.apple.cloudkit/production/public/records/resolve" `
-            -Method Post `
-            -ContentType "application/json" `
-            -Body $body
-
-          Write-Host "iCloud response:"
-          $response | ConvertTo-Json -Depth 20
-
-          if (-not $response.results) {
-            throw "iCloud returned no results."
-          }
-
-          $result = $response.results[0]
-
-          if ($result.reason) {
-            throw "iCloud error: $($result.reason) [$($result.serverErrorCode)]"
-          }
-
-          $record = $result.rootRecord
-
-          if (-not $record) {
-            throw "iCloud did not return a rootRecord."
-          }
-
-          $fileContent = $record.fields.fileContent.value
-
-          if (-not $fileContent) {
-            throw "iCloud did not return fileContent."
-          }
-
-          $downloadUrl = $fileContent.downloadURL
-
-          if (-not $downloadUrl) {
-            throw "iCloud did not return a downloadURL."
-          }
-
-          $filename = $record.fields.filename.value.stringValue
-
-          if (-not $filename) {
-            $filename = "Crash Twinsanity.iso"
-          }
-
-          Write-Host "Filename: $filename"
-          Write-Host "Downloading ISO..."
-
-          Invoke-WebRequest `
-            -Uri $downloadUrl `
-            -OutFile $filename
-
-          $file = Get-Item $filename
-
-          Write-Host "Downloaded:"
-          Write-Host "Name: $($file.Name)"
-          Write-Host "Size: $($file.Length) bytes"
+          Write-Host ""
+          Write-Host "Files in repository root:"
+          Get-ChildItem -File | Select-Object Name, Length
 
       - name: Build mod
         shell: powershell
         run: |
           python tools/build_mod.py
 
-      - name: List output
+      - name: Show build output
         shell: powershell
         run: |
-          Get-ChildItem -Filter "*[Modded].iso"
-      - name: Build Twinsanity Editor
-        shell: powershell
-        run: |
-          python tools/build_mod.py
+          Write-Host "ISO files:"
+          Get-ChildItem -Filter "*.iso" | Select-Object Name, Length
