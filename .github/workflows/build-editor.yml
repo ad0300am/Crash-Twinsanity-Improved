@@ -3,6 +3,9 @@ name: Build Twinsanity Editor
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -13,7 +16,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v7
         with:
           python-version: '3.11'
@@ -25,27 +28,93 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install icloud-resolver
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v3
-
       - name: Download ISO from iCloud
         shell: powershell
         run: |
-          Write-Host "Downloading Crash Twinsanity ISO from iCloud..."
-
           icr -o "." "https://www.icloud.com/iclouddrive/09djTEFLDsIwA5QpcMTPjvcDw"
 
-          Write-Host ""
-          Write-Host "ISO files:"
-          Get-ChildItem -Filter "*.iso" | Select-Object Name, Length
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
 
-      - name: Build mod
+      - name: Build modded ISO
         shell: powershell
         run: |
           python tools/build_mod.py
 
-      - name: Show build output
+      - name: Find modded ISO
         shell: powershell
+        run: |
+          $iso = Get-ChildItem -File -Filter "*.iso" |
+            Where-Object { $_.Name.EndsWith(" [Modded].iso") } |
+            Select-Object -First 1
+
+          if (-not $iso) {
+            Write-Error "Modded ISO not found"
+            exit 1
+          }
+
+          Write-Host "Found modded ISO:"
+          Write-Host $iso.FullName
+          Write-Host "Size: $([math]::Round($iso.Length / 1GB, 2)) GB"
+
+      - name: Split ISO into parts
+        shell: powershell
+        run: |
+          $iso = Get-ChildItem -File -Filter "*.iso" |
+            Where-Object { $_.Name.EndsWith(" [Modded].iso") } |
+            Select-Object -First 1
+
+          $partSize = 1900MB
+          $buffer = New-Object byte[] (10MB)
+
+          $input = [System.IO.File]::OpenRead($iso.FullName)
+          $part = 1
+
+          try {
+            while ($input.Position -lt $input.Length) {
+              $partName = Join-Path $PWD.Path ("Crash-Twinsanity-Modded.part{0:D2}" -f $part)
+              $output = [System.IO.File]::Create($partName)
+
+              try {
+                $remaining = [Math]::Min($partSize, $input.Length - $input.Position)
+
+                while ($remaining -gt 0) {
+                  $toRead = [Math]::Min($buffer.Length, $remaining)
+                  $read = $input.Read($buffer, 0, $toRead)
+
+                  if ($read -le 0) {
+                    break
+                  }
+
+                  $output.Write($buffer, 0, $read)
+                  $remaining -= $read
+                }
+              }
+              finally {
+                $output.Close()
+              }
+
+              Write-Host "Created $partName"
+              $part++
+            }
+          }
+          finally {
+            $input.Close()
+          }
+
+      - name: Create GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "modded-${{ github.run_number }}"
+
+          gh release create $tag `
+            Crash-Twinsanity-Modded.part01 `
+            Crash-Twinsanity-Modded.part02 `
+            --title "Crash Twinsanity Improved - Modded ISO" `
+            --notes "Modded Crash Twinsanity ISO. Download all parts and join them together."
+
         run: |
           Write-Host "Build output:"
           Get-ChildItem -Filter "*[Modded].iso" | Select-Object Name, Length
