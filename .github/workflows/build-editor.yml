@@ -19,7 +19,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install Python dependencies
         shell: powershell
@@ -113,8 +113,4 @@ jobs:
             Crash-Twinsanity-Modded.part01 `
             Crash-Twinsanity-Modded.part02 `
             --title "Crash Twinsanity Improved - Modded ISO" `
-            --notes "Modded Crash Twinsanity ISO. Download all parts and join them together."
-
-        run: |
-          Write-Host "Build output:"
-          Get-ChildItem -Filter "*[Modded].iso" | Select-Object Name, Length
+            --notes "Modded Crash Twinsanity ISO. Download both parts and join them together."
