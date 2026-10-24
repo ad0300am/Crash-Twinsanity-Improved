@@ -16,13 +16,14 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
       - name: Install Python dependencies
         shell: powershell
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+          python -m pip install icloud-resolver
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
@@ -30,15 +31,13 @@ jobs:
       - name: Download ISO from iCloud
         shell: powershell
         run: |
-          python -m pip install icloud-resolver
-
           Write-Host "Downloading Crash Twinsanity ISO from iCloud..."
 
-          icloud-resolver "https://www.icloud.com/iclouddrive/09djTEFLDsIwA5QpcMTPjvcDw"
+          icr -o "." "https://www.icloud.com/iclouddrive/09djTEFLDsIwA5QpcMTPjvcDw"
 
           Write-Host ""
-          Write-Host "Files in repository root:"
-          Get-ChildItem -File | Select-Object Name, Length
+          Write-Host "ISO files:"
+          Get-ChildItem -Filter "*.iso" | Select-Object Name, Length
 
       - name: Build mod
         shell: powershell
@@ -48,5 +47,5 @@ jobs:
       - name: Show build output
         shell: powershell
         run: |
-          Write-Host "ISO files:"
-          Get-ChildItem -Filter "*.iso" | Select-Object Name, Length
+          Write-Host "Build output:"
+          Get-ChildItem -Filter "*[Modded].iso" | Select-Object Name, Length
