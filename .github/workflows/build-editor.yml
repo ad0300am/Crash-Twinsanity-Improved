@@ -1,0 +1,32 @@
+name: Build Twinsanity Editor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Show repository
+        shell: powershell
+        run: |
+          Write-Host "Repository:"
+          Get-ChildItem
+
+          Write-Host ""
+          Write-Host "Tools:"
+          Get-ChildItem .\tools -Recurse -Depth 2
+
+      - name: Build Twinsanity Editor
+        shell: powershell
+        run: |
+          python tools/build_mod.py
