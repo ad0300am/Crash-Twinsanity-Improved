@@ -27,7 +27,7 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
 
-      - name: Download ISO from iCloud
+            - name: Download ISO from iCloud
         shell: powershell
         run: |
           $icloudId = "09djTEFLDsIwA5QpcMTPjvcDw"
@@ -48,8 +48,42 @@ jobs:
             -ContentType "application/json" `
             -Body $body
 
-          $downloadUrl = $response.results[0].rootRecord.fields.fileContent.value.downloadURL
-          $filename = $response.results[0].rootRecord.fields.filename.value.stringValue
+          Write-Host "iCloud response:"
+          $response | ConvertTo-Json -Depth 20
+
+          if (-not $response.results) {
+            throw "iCloud returned no results."
+          }
+
+          $result = $response.results[0]
+
+          if ($result.reason) {
+            throw "iCloud error: $($result.reason) [$($result.serverErrorCode)]"
+          }
+
+          $record = $result.rootRecord
+
+          if (-not $record) {
+            throw "iCloud did not return a rootRecord."
+          }
+
+          $fileContent = $record.fields.fileContent.value
+
+          if (-not $fileContent) {
+            throw "iCloud did not return fileContent."
+          }
+
+          $downloadUrl = $fileContent.downloadURL
+
+          if (-not $downloadUrl) {
+            throw "iCloud did not return a downloadURL."
+          }
+
+          $filename = $record.fields.filename.value.stringValue
+
+          if (-not $filename) {
+            $filename = "Crash Twinsanity.iso"
+          }
 
           Write-Host "Filename: $filename"
           Write-Host "Downloading ISO..."
@@ -58,8 +92,11 @@ jobs:
             -Uri $downloadUrl `
             -OutFile $filename
 
+          $file = Get-Item $filename
+
           Write-Host "Downloaded:"
-          Get-Item $filename | Select-Object Name, Length
+          Write-Host "Name: $($file.Name)"
+          Write-Host "Size: $($file.Length) bytes"
 
       - name: Build mod
         shell: powershell
